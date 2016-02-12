@@ -16,6 +16,10 @@
 # Configures rhsm on client. Called from the certificate RPM.
 #
 
+
+read -r -d '' KATELLO_CERT_DATA << EOM
+<%= server_cert_data %>
+EOM
 KATELLO_SERVER=<%= @hostname %>
 KATELLO_CERT=<%= @server_ca_name %>.pem
 KATELLO_CERT_DIR=<%= @rhsm_ca_dir %>
