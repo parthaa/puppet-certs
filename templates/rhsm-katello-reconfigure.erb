@@ -16,13 +16,22 @@
 # Configures rhsm on client. Called from the certificate RPM.
 #
 
-#copy the certificate to this variable KATELLO_CERT_DATA
-read -r -d '' KATELLO_CERT_DATA << EOM
-<%= server_cert_data %>
+#copy the certificate to this variable KATELLO_SERVER_CA_DATA
+read -r -d '' KATELLO_SERVER_CA_DATA << EOM
+<%= @katello_server_ca_data %>
 EOM
+
+#copy the default ca certificate to this variable KATELLO_DEFAULT_CA_DATA
+read -r -d '' KATELLO_DEFAULT_CA_DATA << EOM
+<%= @katello_default_ca_data %>
+EOM
+
 KATELLO_SERVER=<%= @hostname %>
-KATELLO_CERT=<%= @server_ca_name %>.pem
+KATELLO_SERVER_CA_CERT=<%= @server_ca_name %>.pem
+KATELLO_DEFAULT_CA_CERT=<%= @default_ca_name %>.pem
+
 KATELLO_CERT_DIR=<%= @rhsm_ca_dir %>
+
 PORT=<%= @rhsm_port %>
 
 PREFIX=<%= @deployment_url %>
@@ -37,7 +46,19 @@ type -P subscription-manager >/dev/null || type -P subscription-manager-cli >/de
 # backup configuration during the first run
 test -f $CFG_BACKUP || cp $CFG $CFG_BACKUP
 
-IF NOT ATOMIC
+#create the cert
+echo $KATELLO_SERVER_CA_DATA > $KATELLO_CERT_DIR/$KATELLO_SERVER_CA_CERT
+chmod 644 $KATELLO_CERT_DIR/$KATELLO_SERVER_CA_CERT
+
+echo $KATELLO_DEFAULT_CA_DATA > $KATELLO_CERT_DIR/$KATELLO_DEFAULT_CA_CERT
+chmod 644 $KATELLO_CERT_DIR/$KATELLO_DEFAULT_CA_CERT
+
+
+# if not atomic machine, regular rhel then handle traditional way
+if [! -e "/run/ostree-booted"] ;
+then
+  # rhel setup
+
   BASEURL=https://$KATELLO_SERVER/pulp/repos
 
   # Get version of RHSM
@@ -55,13 +76,13 @@ IF NOT ATOMIC
       --server.hostname="$KATELLO_SERVER" \
       --server.prefix="$PREFIX" \
       --server.port="$PORT" \
-      --rhsm.repo_ca_cert="%%(ca_cert_dir)s$KATELLO_CERT" \
+      --rhsm.repo_ca_cert="%(ca_cert_dir)s$KATELLO_SERVER_CA_CERT" \
       --rhsm.baseurl="$BASEURL"
   else
     sed -i "s/^hostname\s*=.*/hostname = $KATELLO_SERVER/g" $CFG
     sed -i "s/^port\s*=.*/port = $PORT/g" $CFG
     sed -i "s|^prefix\s*=.*|prefix = $PREFIX|g" $CFG
-    sed -i "s|^repo_ca_cert\s*=.*|repo_ca_cert = %%(ca_cert_dir)s$KATELLO_CERT|g" $CFG
+    sed -i "s|^repo_ca_cert\s*=.*|repo_ca_cert = %(ca_cert_dir)s$KATELLO_SERVER_CA_CERT|g" $CFG
     sed -i "s|^baseurl\s*=.*|baseurl=$BASEURL|g" $CFG
   fi
 
@@ -71,10 +92,9 @@ IF NOT ATOMIC
     full_refresh_config="#config for on-premise management\nfull_refresh_on_yum = 1"
     sed -i "s/baseurl.*/&\n\n$full_refresh_config/g" $CFG
   fi
-ELSE
+else
+  #atomic machine setup
   BASEURL=https://$KATELLO_SERVER/pulp/ostree/web/
-
-  cp $SCRIPT_DIR/$KATELLO_CERT $KATELLO_CERT_DIR
 
   # configure rhsm
   # the config command was introduced in rhsm 0.96.6
@@ -82,14 +102,14 @@ ELSE
     --server.hostname="$KATELLO_SERVER" \
     --server.prefix="$PREFIX" \
     --server.port="$PORT" \
-    --rhsm.repo_ca_cert="%(ca_cert_dir)s$KATELLO_CERT" \
+    --rhsm.repo_ca_cert="%(ca_cert_dir)s$KATELLO_SERVER_CA_CERT" \
     --rhsm.baseurl="$BASEURL"
-FI
+fi
 
 # also add the katello ca cert to the system wide ca cert store
 if [ -d $CA_TRUST_ANCHORS ]; then
   update-ca-trust enable
-  cp $KATELLO_CERT_DIR/$KATELLO_CERT $CA_TRUST_ANCHORS
+  cp $KATELLO_CERT_DIR/$KATELLO_SERVER_CA_CERT $CA_TRUST_ANCHORS
   update-ca-trust
 
   # restart docker if it is installed and running
