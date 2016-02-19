@@ -18,12 +18,12 @@
 
 #copy the certificate to this variable KATELLO_SERVER_CA_DATA
 read -r -d '' KATELLO_SERVER_CA_DATA << EOM
-<%= @katello_server_ca_data %>
+<%=  File.exist?(scope['katello_server_ca_file'])  ? File.open(scope['katello_server_ca_file']).read : ""%>
 EOM
 
 #copy the default ca certificate to this variable KATELLO_DEFAULT_CA_DATA
 read -r -d '' KATELLO_DEFAULT_CA_DATA << EOM
-<%= @katello_default_ca_data %>
+<%=  File.exist?(scope['katello_default_ca_file'])  ? File.open(scope['katello_default_ca_file']).read : ""%>
 EOM
 
 KATELLO_SERVER=<%= @hostname %>

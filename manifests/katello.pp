@@ -22,8 +22,8 @@ class certs::katello (
   $candlepin_consumer_summary     = "Subscription-manager consumer certificate for Katello instance ${::fqdn}"
   $candlepin_consumer_description = 'Consumer certificate and post installation script that configures rhsm.'
 
-  $katello_default_ca_data = file("${certs::pki_dir}/certs/${certs::katello::default_ca_name}.crt")
-  $katello_server_ca_data = file("${certs::pki_dir}/certs/${certs::katello::server_ca_name}.crt")
+  $katello_default_ca_file = "${certs::pki_dir}/certs/${certs::katello::default_ca_name}.crt"
+  $katello_server_ca_file = "${certs::pki_dir}/certs/${certs::katello::server_ca_name}.crt"
 
   include ::trusted_ca
   trusted_ca::ca { 'katello_server-host-cert':
